@@ -1,0 +1,55 @@
+import numpy as np
+import matplotlib.pyplot as plt
+
+# --- 1. PARAMETER CONFIGURATION ---
+c = 1520              # Speed of sound (m/s)
+fs = 100e6            # Sampling frequency (100 MHz). Takes a sample every 10 ns
+t = np.arange(0, 100e-6, 1/fs) # 100 microsecond time window. Total listening duration of the transducer
+
+# --- 2. SCATTERER DEFINITION ---
+z_scatterer = 0.04    # Position of the scatterer at 4 cm (0.04 m)
+amp_scatterer = 1.0   # Reflectivity (A=1 represents how much acoustic material reflects the signal)
+
+# --- 3. CREATION OF THE IMPULSE e(t) ---
+f0 = 5e6              # Transducer center frequency (5 MHz)
+# Create a short Gaussian pulse (the "ping")
+pulse_t = np.arange(-1e-6, 1e-6, 1/fs)  # 2 microsecond pulse duration
+et = np.exp(-0.5 * (pulse_t / 0.2e-6)**2) * np.cos(2 * np.pi * f0 * pulse_t)
+# np.exp(-0.5 * (pulse_t / 0.2e-6)**2) = Gaussian envelope, the bell curve where the sinusoid resides.
+# np.cos(2 * np.pi * f0 * pulse_t) = The 5 MHz sinusoid
+
+# --- 4. RECEIVER SIMULATION ---
+# Calculate Time of Flight (Round Trip)
+tau = (2 * z_scatterer) / c  # Round trip time in seconds (e.g., 0.00005263 s)
+print(f"Calculated delay (tau): {tau*1e6:.2f} microseconds")  # Print in microseconds
+
+# Create the received signal (initially silence)
+rf_signal = np.zeros_like(t) # Create a 100 microsecond line of zeros
+
+# Find the time index corresponding to tau
+idx_tau = np.argmin(np.abs(t - tau)) 
+# tau is an exact microsecond value, the array 't' consists of many numbers. 
+# 't - tau' creates an array of differences, 'np.abs' takes the absolute value of each difference, 
+# and 'np.argmin' finds the index of the minimum value in that array of differences.
+
+# Insert the reflected pulse into the received signal
+# (Place the pulse centered on tau)
+start_idx = idx_tau - len(et)//2
+end_idx = start_idx + len(et)
+
+if start_idx > 0 and end_idx < len(rf_signal):
+    rf_signal[start_idx:end_idx] = et * amp_scatterer
+
+# --- 5. VISUALIZATION ---
+plt.figure(figsize=(10, 4))
+plt.plot(t * 1e6, rf_signal, label='RF Signal')
+
+# Zoom in around the signal
+plt.xlim([tau*1e6 - 5, tau*1e6 + 5]) # +/- 5 microseconds around the echo
+
+plt.title("Zoom on Reflected Impulse")
+plt.xlabel("Time ($\mu s$)")
+plt.ylabel("Amplitude")
+plt.grid(True)
+plt.legend()
+plt.show()
